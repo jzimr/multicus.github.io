@@ -1,0 +1,111 @@
+---
+layout: post
+title:  "Dining Philosophers problem"
+subtitle: "Solved and explained with a simulation"
+date:   2019-02-15 00:00:01
+background: '/img/posts/showcase.gif'
+---
+<h2 class="section-heading">The problem</h2>
+<p><i>We have five philosophers, each with their own plate of spaghetti and five chopsticks placed around in a circle: </i></p>
+
+<img class="img-fluid" src="/img/posts/default-layout-phil.png" alt="Demo Image">
+
+<p><i>The pondering philosophers eventually need food in order to keep thinking, but to satisfy everyone's hunger at once we would 
+need 10 chopsticks, and we only have 5 in total! Even worse, the philosophers can only grab the two chopsticks closest to them.</i></p>
+
+<p>Given that each philosopher has no information about any other philosopher, we have to solve this synchronization problem of who
+can access the chopsticks and when with a guarantee that no problems will arise.</p>
+
+<h2 class="section-heading">So what's the holdup?</h2>
+
+<p>The first obvious solution that might come to mind:</p>
+<ul>
+  <li>Philosopher is now hungry.</li>
+    <li>Philosopher waits until right chopstick is available. If yes, pick up.</li>
+  <li>Philosopher waits until left chopstick is available. If yes, pick up.</li>
+  <li>Philosopher has now both chopsticks and eats.</li>
+  <li>Philosopher has finished eating.</li>
+  <li>Put right chopstick back on table.</li>
+  <li>Put left chopstick back on table.</li>
+  <li>Repeat from start.</li>
+</ul> 
+
+<p>This would work well in one-threaded applications where you check for one philosopher at a time. 
+In our case, however, there is one thread (or process!) per philosopher, making this method prone to deadlocks. 
+I.e. if all philosophers are hungry and request the right chopstick simultaneously, they will
+all be placed in a queue waiting for the left chopstick, stuck in a demonic loop; Everyone will be waiting for everyone to finish.</p>
+
+<img class="img-fluid" src="/img/posts/deadlock-example.gif" alt="Demo Image">
+<span class="caption text-muted">Example of a mean deadlock occuring where every philosopher is stuck in the "Hungry" state.</span>
+
+<h2 class="section-heading">An alternative solution</h2>
+
+<p>Let's say the philosophers alternate between 3 states: <b>Thinking, Hungry</b> and <b>Eating</b>:
+
+<ul>
+<li>Thinking: The philosopher does nothing (except to think, of course).</li>
+<li>Hungry: The philosopher needs food. If no chopsticks are available, he will keep staying hungry until
+he gets grab of two chopsticks.</li> 
+<li>Eating: The philosopher has got ahold of two chopsticks. He will eat until done, then
+put the chopsticks back onto the table and return to thinking.</li>
+</ul>
+</p>
+
+<p>The solution I will be using is based off Tanenbaum's "Modern Operating Systems" with a few tweaks for the C++ implementation.
+(<i>I will only be posting the pseudocode for the algorithm, if you want to see how it is implemented in C++ 
+<b>check out the source file:</i> <a target="_blank" rel="noopener noreferrer" href="https://github.com/multicus/DiningPhilosophersSim/blob/master/Philosopher.cpp">github</a></b>)</p>
+
+<pre>
+<code class="c">
+/* starting point for each thread created */
+philosopher() {
+    while(TRUE)
+        sleep_for_x         /* philosopher is thinking */
+        takeChopsticks()    /* aquire two chopsticks */
+        sleep_for_x         /* yum-yum spaghetti */
+        putChopsticks()     /* put chopsticks back on table */			
+}
+
+takeChopsticks() {
+    lock_mutex              /* enter critical region */
+    state[id] = HUNGRY      /* philosopher is now hungry */
+    while(!test())          /* loop until chopsticks are available */
+        wait_for(mutex)     /* thread sleep until someone has finished eating */
+    unlock_mutex            /* exit critical region */
+}
+
+putChopsticks() {
+    lock_mutex              /* enter critical region */
+    state[id] = THINKING    /* philosopher has finished eating */
+    notify_all_mutex        /* wakeup philosophers waiting, and exit critical region */
+}
+
+test() {                    /* if philosopher is hungry and chopsticks available */
+    if(state[id] == HUNGRY && state[LEFT] != EATING && state[RIGHT] != EATING)
+        state[id] = EATING  /* philosopher has started eating */
+        return true         /* test successful! */
+    return false            /* test not succesful :( */
+}
+</code>
+</pre>
+
+<img class="img-fluid" src="/img/posts/showcase.gif" alt="Demo Image">
+<span class="caption text-muted">The finished product.</span>
+
+<button title="Click to show/hide content" type="button" onclick="if(document.getElementById('spoiler') .style.display=='none') {document.getElementById('spoiler') .style.display=''}else{document.getElementById('spoiler') .style.display='none'}">
+Why not use semaphores?
+</button>
+<div id="spoiler" style="display:none">
+<p><i>Tanenbaum's original algorithm uses POSIX semaphores. I developed the simulation on Windows and was therefore restricted to use mutexes instead.
+Both semaphores and mutexes work equally well. If you want another solution using semaphores, <b>I got another small project you can take a look at:</i>
+<a target="_blank" rel="noopener noreferrer" href="https://github.com/multicus/DiningPhilosophersSim/blob/master/dining-philosophers-semaphores.c">github</a>.</b></p>
+</div>
+
+<p><i><b>
+Simulation download:</i>
+<a href="/files/Dining-philosophers-sim.rar" download>Dining-philosophers-sim.rar</a>
+</p>
+
+
+
+
